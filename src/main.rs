@@ -1,4 +1,5 @@
 use chrono::{Local, NaiveDate, NaiveDateTime, Timelike};
+use clap::Parser;
 use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
@@ -7,6 +8,12 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::interval;
 use tracing::info;
+
+#[derive(Parser)]
+#[command(name = "mbot")]
+#[command(version = "0.1.0")]
+#[command(about = "A scheduler bot", long_about = None)]
+struct Cli {}
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Task {
@@ -44,6 +51,8 @@ impl std::fmt::Display for Task {
 
 #[tokio::main]
 async fn main() {
+    let _cli = Cli::parse();
+    
     tracing_subscriber::fmt::init();
     info!("mbot scheduler started");
 
