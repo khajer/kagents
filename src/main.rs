@@ -1,8 +1,10 @@
 use chrono::{Local, NaiveDate, NaiveDateTime, Timelike};
 use clap::Parser;
 use regex::Regex;
+use sqlx::SqlitePool;
 use std::collections::HashSet;
 use std::fs;
+use std::io::{self, BufRead};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -49,57 +51,115 @@ impl std::fmt::Display for Task {
     }
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Agent {
+    pub id: i64,
+    pub name: String,
+    pub token: String,
+    pub model: String,
+    pub created_at: String,
+}
+
+impl std::fmt::Display for Agent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ID: {} | Name: {} | Model: {} | Created: {}",
+            self.id, self.name, self.model, self.created_at
+        )
+    }
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _cli = Cli::parse();
-    
+
     tracing_subscriber::fmt::init();
     info!("mbot scheduler started");
 
+    let pool = SqlitePool::connect("sqlite:agents.sqlite").await?;
+    info!("Connected to database");
+
     let reminded = Arc::new(RwLock::new(HashSet::<String>::new()));
-    let mut ticker = interval(Duration::from_secs(60));
+    let reminded_clone = Arc::clone(&reminded);
+    let pool_clone = pool.clone();
 
-    loop {
-        ticker.tick().await;
+    tokio::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(60));
 
-        let tasks = parse_tasks(&read_markdown_file("schedules/schedule.md"));
-        let now = Local::now().naive_local();
-        let today = now.date();
-        let current_time = now.time();
+        loop {
+            ticker.tick().await;
 
-        let mut reminded_guard = reminded.write().await;
+            let tasks = parse_tasks(&read_markdown_file("schedules/schedule.md"));
+            let now = Local::now().naive_local();
+            let today = now.date();
+            let current_time = now.time();
 
-        for task in tasks {
-            if task.completed {
-                continue;
-            }
+            let mut reminded_guard = reminded_clone.write().await;
 
-            let key = task.unique_key();
-
-            if reminded_guard.contains(&key) {
-                continue;
-            }
-
-            let should_remind = match task.datetime() {
-                Some(task_dt) => {
-                    let diff = (task_dt - now).num_seconds();
-                    (0..60).contains(&diff)
+            for task in tasks {
+                if task.completed {
+                    continue;
                 }
-                None => {
-                    task.date == today && current_time.hour() == 9 && current_time.minute() == 0
-                }
-            };
 
-            if should_remind {
-                info!(target: "reminder", "REMINDER: {} | Scheduled: {} {}",
-                    task.description,
-                    task.date,
-                    task.time.as_deref().unwrap_or("all-day")
-                );
-                reminded_guard.insert(key);
+                let key = task.unique_key();
+
+                if reminded_guard.contains(&key) {
+                    continue;
+                }
+
+                let should_remind = match task.datetime() {
+                    Some(task_dt) => {
+                        let diff = (task_dt - now).num_seconds();
+                        (0..60).contains(&diff)
+                    }
+                    None => {
+                        task.date == today && current_time.hour() == 9 && current_time.minute() == 0
+                    }
+                };
+
+                if should_remind {
+                    info!(target: "reminder", "REMINDER: {} | Scheduled: {} {}",
+                        task.description,
+                        task.date,
+                        task.time.as_deref().unwrap_or("all-day")
+                    );
+                    reminded_guard.insert(key);
+                }
             }
         }
+    });
+
+    let stdin = io::stdin();
+    info!("Type 'list' to show agents, 'quit' to exit");
+
+    for line in stdin.lock().lines() {
+        let input = line?.trim().to_lowercase();
+
+        if input == "list" {
+            match list_agents(&pool_clone).await {
+                Ok(agents) => {
+                    if agents.is_empty() {
+                        println!("No agents found in database.");
+                    } else {
+                        println!("\n=== Agents ===");
+                        for agent in agents {
+                            println!("{}", agent);
+                        }
+                        println!("==============\n");
+                    }
+                }
+                Err(e) => eprintln!("Error listing agents: {}", e),
+            }
+        } else if input == "quit" || input == "exit" {
+            info!("Shutting down...");
+            break;
+        } else if !input.is_empty() {
+            println!("Unknown command. Type 'list' to show agents, 'quit' to exit");
+        }
     }
+
+    Ok(())
 }
 
 pub fn read_markdown_file(path: &str) -> String {
@@ -130,4 +190,10 @@ pub fn parse_tasks(content: &str) -> Vec<Task> {
     }
 
     tasks
+}
+
+pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
+    sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents")
+        .fetch_all(pool)
+        .await
 }
