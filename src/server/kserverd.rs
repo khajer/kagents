@@ -32,7 +32,9 @@ async fn handle_connection(mut stream: TcpStream) -> Result<(), Box<dyn Error>> 
     let (reader, mut writer) = stream.split();
     let mut lines = BufReader::new(reader).lines();
 
-    writer.write_all(b"Welcome to kserverd. Enter commands (type 'quit' to disconnect).\n").await?;
+    writer
+        .write_all(b"Welcome to kserverd. Enter commands (type 'quit' to disconnect).\n")
+        .await?;
 
     while let Some(line) = lines.next_line().await? {
         let command = line.trim();
@@ -64,7 +66,10 @@ fn handle_command(cmd: &str) -> String {
             text.to_string()
         }
         _ => {
-            format!("Unknown command: {}. Type 'help' for available commands.", cmd)
+            format!(
+                "Unknown command: {}. Type 'help' for available commands.",
+                cmd
+            )
         }
     }
 }

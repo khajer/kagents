@@ -15,7 +15,7 @@ mbot is a Rust async bot/application using:
 ### Binaries
 
 This project contains multiple binaries:
-- **mbot** - Main scheduler bot (`src/main.rs`)
+- **kcli** - Main scheduler CLI (`src/kcli/kcli.rs`)
 - **kserverd** - TCP command server on port 6411 (`src/server/kserverd.rs`)
 
 ## Build/Lint/Test Commands
@@ -28,7 +28,7 @@ cargo build
 cargo build --release
 
 # Run the main application
-cargo run
+cargo run --bin kcli
 
 # Run kserverd (TCP server on port 6411)
 cargo run --bin kserverd
@@ -38,6 +38,7 @@ cargo check
 
 # Check a specific binary
 cargo check --bin kserverd
+cargo check --bin kcli
 
 # Run all tests
 cargo test
@@ -204,7 +205,8 @@ mod tests {
 mbot/
 ├── Cargo.toml          # Dependencies and metadata
 ├── src/
-│   ├── main.rs         # Main application entry point
+│   ├── kcli/
+│   │   └── kcli.rs     # Main scheduler CLI
 │   └── server/
 │       └── kserverd.rs # TCP command server (port 6411)
 ├── schedules/
