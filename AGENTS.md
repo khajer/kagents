@@ -12,6 +12,12 @@ mbot is a Rust async bot/application using:
 - **chrono** - date/time handling
 - **tracing** - structured logging
 
+### Binaries
+
+This project contains multiple binaries:
+- **mbot** - Main scheduler bot (`src/main.rs`)
+- **kserverd** - TCP command server on port 6411 (`src/server/kserverd.rs`)
+
 ## Build/Lint/Test Commands
 
 ```bash
@@ -21,11 +27,17 @@ cargo build
 # Build for release (optimized)
 cargo build --release
 
-# Run the application
+# Run the main application
 cargo run
+
+# Run kserverd (TCP server on port 6411)
+cargo run --bin kserverd
 
 # Fast check without full compilation
 cargo check
+
+# Check a specific binary
+cargo check --bin kserverd
 
 # Run all tests
 cargo test
@@ -192,7 +204,9 @@ mod tests {
 mbot/
 ├── Cargo.toml          # Dependencies and metadata
 ├── src/
-│   └── main.rs         # Application entry point
+│   ├── main.rs         # Main application entry point
+│   └── server/
+│       └── kserverd.rs # TCP command server (port 6411)
 ├── schedules/
 │   └── schedule.md     # Task schedule data
 └── tests/              # Integration tests (if any)
