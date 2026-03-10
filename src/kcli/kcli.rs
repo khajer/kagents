@@ -11,7 +11,7 @@ use tokio::time::interval;
 use tracing::info;
 
 #[derive(Parser)]
-#[command(name = "mbot")]
+#[command(name = "kcli")]
 #[command(version = "0.1.0")]
 #[command(about = "A scheduler bot", long_about = None)]
 struct Cli {
@@ -100,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         None => {
             tracing_subscriber::fmt::init();
-            info!("mbot scheduler started");
+            info!("kcli scheduler started");
             info!("Connected to database");
 
             let reminded = Arc::new(RwLock::new(HashSet::<String>::new()));
