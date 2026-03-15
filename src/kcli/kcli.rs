@@ -6,6 +6,7 @@ use clap::{Parser, Subcommand};
 #[command(version)]
 #[command(about = "KAgents CLI ", long_about = None)]
 #[command(arg_required_else_help = true)]
+
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -21,6 +22,8 @@ enum Commands {
 
 }
 
+const SERVER_URL: &str = "127.0.0.1:6411";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
@@ -30,7 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
 
         Some(Commands::Status { task }) => {
-            if check_server_open().await != true {
+
+            if check_server_open(SERVER_URL).await != true {
                 println!("the server doesn't run.");
 
                 return Ok(())
@@ -49,6 +53,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn check_server_open() -> bool {
-    tokio::net::TcpStream::connect("127.0.0.1:6411").await.is_ok()
+async fn check_server_open(server_url: &str) -> bool {
+    tokio::net::TcpStream::connect(server_url).await.is_ok()
 }
