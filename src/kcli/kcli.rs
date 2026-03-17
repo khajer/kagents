@@ -24,6 +24,16 @@ enum Commands {
         #[arg(short, long, help = "Task name or ID")]
         task: Option<String>,
     },
+    #[command(about = "add agents")]
+    Add {
+        #[arg(short, long, help = "add name or ID")]
+        task: Option<String>,
+    },
+    #[command(about = "remove agents")]
+    Remove {
+        #[arg(short, long, help = "remove agents ")]
+        task: Option<String>,
+    },
 
 }
 
@@ -53,6 +63,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::List { task: _ }) => {
             println!("list agent works ");
         }
+        Some(Commands::Add { task: _ }) => {
+            println!("add agent works ");
+        }
+        Some(Commands::Remove { task: _ }) => {
+            println!("remove agent works ");
+        }
+
         None => {
             println!("Use 'kcli --help' for usage information.");
         }
