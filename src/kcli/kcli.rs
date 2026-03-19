@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Parser)]
 #[command(name = "kcli")]
@@ -51,7 +52,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if check_server_open(SERVER_URL).await != true {
                 println!("the server doesn't run.");
-
                 return Ok(())
             }
             if let Some(t) = task {
@@ -61,7 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::List { task: _ }) => {
-            println!("list agent works ");
+            if check_server_open(SERVER_URL).await == true {
+                send_list().await;
+            }
         }
         Some(Commands::Add { task: _ }) => {
             println!("add agent works ");
@@ -80,4 +82,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn check_server_open(server_url: &str) -> bool {
     tokio::net::TcpStream::connect(server_url).await.is_ok()
+}
+
+async fn send_list() {
+    match tokio::net::TcpStream::connect(SERVER_URL).await {
+        Ok(mut stream) => {
+
+            if let Err(e) = stream.write_all(b"list\n").await {
+                eprintln!("Failed to send LIST command: {}", e);
+                return;
+            }
+
+            let mut buffer = [0u8; 1024];
+            match stream.read(&mut buffer).await {
+                Ok(n) => {
+                    if n > 0 {
+                        let response = String::from_utf8_lossy(&buffer[..n]);
+                        println!("{}", response);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to read response: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to server: {}", e);
+        }
+    }
 }
