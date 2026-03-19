@@ -85,11 +85,10 @@ async fn check_server_open(server_url: &str) -> bool {
 }
 
 async fn send_list() {
-
     match tokio::net::TcpStream::connect(SERVER_URL).await {
         Ok(mut stream) => {
 
-            if let Err(e) = stream.write_all(b"LIST").await {
+            if let Err(e) = stream.write_all(b"list\n").await {
                 eprintln!("Failed to send LIST command: {}", e);
                 return;
             }
