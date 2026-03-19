@@ -60,10 +60,6 @@ async fn handle_connection(
     let (reader, mut writer) = stream.split();
     let mut lines = BufReader::new(reader).lines();
 
-    writer
-        .write_all(b"Welcome to kserverd. Enter commands (type 'quit' to disconnect).\n")
-        .await?;
-
     while let Some(line) = lines.next_line().await? {
         let command = line.trim();
         info!("Received command: {}", command);
@@ -80,6 +76,7 @@ async fn handle_connection(
         let response = handle_command(command, &pool).await;
         writer.write_all(response.as_bytes()).await?;
         writer.write_all(b"\n").await?;
+        return Ok(());
     }
 
     Ok(())
@@ -88,25 +85,9 @@ async fn handle_connection(
 async fn handle_command(cmd: &str, pool: &SqlitePool) -> String {
     match cmd {
         "ping" => "pong".to_string(),
-        "help" => "Available commands: ping, help, quit, echo <text>, agents".to_string(),
-        "agents" => match list_agents(pool).await {
-            Ok(agents) => {
-                if agents.is_empty() {
-                    "No agents found in database.".to_string()
-                } else {
-                    let mut result = String::from("=== Agents ===\n");
-                    for agent in agents {
-                        result.push_str(&format!("{}\n", agent));
-                    }
-                    result.push_str("==============");
-                    result
-                }
-            }
-            Err(e) => format!("Error listing agents: {}", e),
-        },
-        _ if cmd.starts_with("echo ") => {
-            let text = &cmd[5..];
-            text.to_string()
+        "list" => {
+            let list_txt = "test";
+            return format!("list of {list_txt}");
         }
         _ => {
             format!(
