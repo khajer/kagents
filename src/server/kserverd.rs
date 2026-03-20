@@ -1,14 +1,17 @@
+use axum::{
+    response::{IntoResponse, Json},
+    routing::get,
+    Router,
+};
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::error::Error;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info};
+
+use tracing::{info};
 
 const PORT: u16 = 6411;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
     pub id: i64,
     pub name: String,
@@ -27,76 +30,50 @@ impl std::fmt::Display for Agent {
     }
 }
 
+#[derive(Serialize)]
+struct PingResponse {
+    message: String,
+}
+
+#[derive(Serialize)]
+struct ListResponse {
+    agents: Vec<Agent>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
 
-    let pool = Arc::new(SqlitePool::connect("sqlite:agents.sqlite").await?);
+    let pool = SqlitePool::connect("sqlite:agents.sqlite").await?;
     info!("Connected to database");
 
-    let addr: SocketAddr = ([0, 0, 0, 0], PORT).into();
-    let listener = TcpListener::bind(&addr).await?;
+    let app = Router::new()
+        .route("/ping", get(ping_handler))
+        .route("/list", get(list_handler))
+        .with_state(pool);
 
-    info!("kserverd listening on {}", addr);
+    let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
 
-    loop {
-        let (stream, peer_addr) = listener.accept().await?;
-        info!("Accepted connection from {}", peer_addr);
+    info!("kserverd HTTP server listening on {}", addr);
 
-        let pool_clone = Arc::clone(&pool);
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, pool_clone).await {
-                error!("Error handling connection from {}: {}", peer_addr, e);
-            }
-            info!("Connection closed from {}", peer_addr);
-        });
-    }
-}
-
-async fn handle_connection(
-    mut stream: TcpStream,
-    pool: Arc<SqlitePool>,
-) -> Result<(), Box<dyn Error>> {
-    let (reader, mut writer) = stream.split();
-    let mut lines = BufReader::new(reader).lines();
-
-    while let Some(line) = lines.next_line().await? {
-        let command = line.trim();
-        info!("Received command: {}", command);
-
-        if command.is_empty() {
-            continue;
-        }
-
-        if command == "quit" {
-            writer.write_all(b"Goodbye.\n").await?;
-            break;
-        }
-
-        let response = handle_command(command, &pool).await;
-        writer.write_all(response.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        return Ok(());
-    }
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
 
-async fn handle_command(cmd: &str, pool: &SqlitePool) -> String {
-    match cmd {
-        "ping" => "pong".to_string(),
-        "list" => {
-            let list_txt = "test";
-            return format!("list of {list_txt}");
-        }
-        _ => {
-            format!(
-                "Unknown command: {}. Type 'help' for available commands.",
-                cmd
-            )
-        }
-    }
+async fn ping_handler() -> impl IntoResponse {
+    Json(PingResponse {
+        message: "pong".to_string(),
+    })
 }
+
+async fn list_handler() -> impl IntoResponse {
+    Json(ListResponse {
+        agents: vec![],
+    })
+}
+
 
 pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
     sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents")
