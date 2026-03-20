@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use serde::Deserialize;
 
 #[derive(Parser)]
 #[command(name = "kcli")]
@@ -7,7 +7,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[command(version)]
 #[command(about = "KAgents CLI ", long_about = None)]
 #[command(arg_required_else_help = true)]
-
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -35,10 +34,33 @@ enum Commands {
         #[arg(short, long, help = "remove agents ")]
         task: Option<String>,
     },
-
 }
 
-const SERVER_URL: &str = "127.0.0.1:6411";
+const SERVER_URL: &str = "http://127.0.0.1:6411";
+
+#[derive(Deserialize)]
+struct ListResponse {
+    agents: Vec<Agent>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Agent {
+    pub id: i64,
+    pub name: String,
+    pub token: String,
+    pub model: String,
+    pub created_at: String,
+}
+
+impl std::fmt::Display for Agent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ID: {} | Name: {} | Model: {} | Created: {}",
+            self.id, self.name, self.model, self.created_at
+        )
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -47,12 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-
         Some(Commands::Status { task }) => {
-
-            if check_server_open(SERVER_URL).await != true {
+            if !check_server_open().await {
                 println!("the server doesn't run.");
-                return Ok(())
+                return Ok(());
             }
             if let Some(t) = task {
                 println!("Status for task: {}", t);
@@ -61,8 +81,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::List { task: _ }) => {
-            if check_server_open(SERVER_URL).await == true {
+            if check_server_open().await {
                 send_list().await;
+            } else {
+                println!("the server doesn't run.");
             }
         }
         Some(Commands::Add { task: _ }) => {
@@ -71,7 +93,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Remove { task: _ }) => {
             println!("remove agent works ");
         }
-
         None => {
             println!("Use 'kcli --help' for usage information.");
         }
@@ -80,34 +101,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn check_server_open(server_url: &str) -> bool {
-    tokio::net::TcpStream::connect(server_url).await.is_ok()
+async fn check_server_open() -> bool {
+    match reqwest::get(format!("{}/ping", SERVER_URL)).await {
+        Ok(response) => response.status().is_success(),
+        Err(_) => false,
+    }
 }
 
 async fn send_list() {
-    match tokio::net::TcpStream::connect(SERVER_URL).await {
-        Ok(mut stream) => {
-
-            if let Err(e) = stream.write_all(b"list\n").await {
-                eprintln!("Failed to send LIST command: {}", e);
-                return;
-            }
-
-            let mut buffer = [0u8; 1024];
-            match stream.read(&mut buffer).await {
-                Ok(n) => {
-                    if n > 0 {
-                        let response = String::from_utf8_lossy(&buffer[..n]);
-                        println!("{}", response);
+    match reqwest::get(format!("{}/list", SERVER_URL)).await {
+        Ok(response) => match response.json::<ListResponse>().await {
+            Ok(list_response) => {
+                if list_response.agents.is_empty() {
+                    println!("No agents found.");
+                } else {
+                    for agent in list_response.agents {
+                        println!("{}", agent);
                     }
                 }
-                Err(e) => {
-                    eprintln!("Failed to read response: {}", e);
-                }
             }
-        }
-        Err(e) => {
-            eprintln!("Failed to connect to server: {}", e);
-        }
+            Err(e) => eprintln!("Failed to parse response: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect to server: {}", e),
     }
 }
