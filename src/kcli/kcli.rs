@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
+use inquire::Text;
 
 #[derive(Parser)]
 #[command(name = "kcli")]
@@ -88,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Add { task: _ }) => {
+            add_agent();
             println!("add agent works ");
         }
         Some(Commands::Remove { task: _ }) => {
@@ -124,4 +126,13 @@ async fn send_list() {
         },
         Err(e) => eprintln!("Failed to connect to server: {}", e),
     }
+}
+
+fn add_agent(){
+    let agent = Text::new("agent name?").prompt().expect("Failed to read agent name");
+    let model = Text::new("model name?").prompt().expect("Failed to read model name");
+    let api_key = Text::new("api key?").prompt().expect("Failed to read api key");
+
+    println!("agent: {}, model: {}, api_key: {}", agent, model, api_key);
+
 }
