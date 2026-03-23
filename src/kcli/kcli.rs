@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
-use inquire::Text;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
 #[command(name = "kcli")]
@@ -27,8 +26,12 @@ enum Commands {
     },
     #[command(about = "add agents")]
     Add {
-        #[arg(short, long, help = "add name or ID")]
-        task: Option<String>,
+        #[arg(short, long, help = "Agent name")]
+        name: String,
+        #[arg(short, long, help = "Agent token")]
+        token: String,
+        #[arg(short, long, help = "Agent model")]
+        model: String,
     },
     #[command(about = "remove agents")]
     Remove {
@@ -42,6 +45,19 @@ const SERVER_URL: &str = "http://127.0.0.1:6411";
 #[derive(Deserialize)]
 struct ListResponse {
     agents: Vec<Agent>,
+}
+
+#[derive(Serialize)]
+struct CreateAgentRequest {
+    name: String,
+    token: String,
+    model: String,
+}
+
+#[derive(Deserialize)]
+struct CreateAgentResponse {
+    id: i64,
+    message: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,9 +104,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("the server doesn't run.");
             }
         }
-        Some(Commands::Add { task: _ }) => {
-            add_agent();
-            println!("add agent works ");
+        Some(Commands::Add { name, token, model }) => {
+            if check_server_open().await {
+                match add_agent_request(&name, &token, &model).await {
+                    Ok(response) => {
+                        println!("{} (ID: {})", response.message, response.id);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to create agent: {}", e);
+                    }
+                }
+            } else {
+                println!("the server doesn't run.");
+            }
         }
         Some(Commands::Remove { task: _ }) => {
             println!("remove agent works ");
@@ -128,11 +154,20 @@ async fn send_list() {
     }
 }
 
-fn add_agent(){
-    let agent = Text::new("agent name?").prompt().expect("Failed to read agent name");
-    let model = Text::new("model name?").prompt().expect("Failed to read model name");
-    let api_key = Text::new("api key?").prompt().expect("Failed to read api key");
+async fn add_agent_request(name: &str, token: &str, model: &str) -> Result<CreateAgentResponse, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let request_body = CreateAgentRequest {
+        name: name.to_string(),
+        token: token.to_string(),
+        model: model.to_string(),
+    };
 
-    println!("agent: {}, model: {}, api_key: {}", agent, model, api_key);
+    let response = client
+        .post(format!("{}/add", SERVER_URL))
+        .json(&request_body)
+        .send()
+        .await?;
 
+    let create_response = response.json::<CreateAgentResponse>().await?;
+    Ok(create_response)
 }

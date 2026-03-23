@@ -1,13 +1,15 @@
 use axum::{
+    extract::State,
+    http::StatusCode,
     response::{IntoResponse, Json},
-    routing::get,
+    routing::{get, post},
     Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::error::Error;
-
-use tracing::{info};
+use tracing::{error, info};
 
 const PORT: u16 = 6411;
 
@@ -40,6 +42,24 @@ struct ListResponse {
     agents: Vec<Agent>,
 }
 
+#[derive(Deserialize)]
+struct CreateAgent {
+    name: String,
+    token: String,
+    model: String,
+}
+
+#[derive(Serialize)]
+struct CreateAgentResponse {
+    id: i64,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
@@ -50,6 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/ping", get(ping_handler))
         .route("/list", get(list_handler))
+        .route("/add", post(add_agent_handler))
         .with_state(pool);
 
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
@@ -72,6 +93,41 @@ async fn list_handler() -> impl IntoResponse {
     Json(ListResponse {
         agents: vec![],
     })
+}
+
+async fn add_agent_handler(
+    State(pool): State<SqlitePool>,
+    Json(payload): Json<CreateAgent>,
+) -> Result<Json<CreateAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let created_at = Utc::now().to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO agents (name, token, model, created_at) VALUES (?, ?, ?, ?)"
+    )
+    .bind(&payload.name)
+    .bind(&payload.token)
+    .bind(&payload.model)
+    .bind(&created_at)
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(query_result) => {
+            Ok(Json(CreateAgentResponse {
+                id: query_result.last_insert_rowid(),
+                message: "Agent created successfully".to_string(),
+            }))
+        }
+        Err(e) => {
+            error!("Failed to create agent: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to create agent: {}", e),
+                }),
+            ))
+        }
+    }
 }
 
 
