@@ -67,6 +67,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let pool = SqlitePool::connect("sqlite:agents.sqlite").await?;
     info!("Connected to database");
 
+    create_table_if_not_exists(&pool).await?;
+    info!("Database table initialized");
+
     let app = Router::new()
         .route("/ping", get(ping_handler))
         .route("/list", get(list_handler))
@@ -89,10 +92,19 @@ async fn ping_handler() -> impl IntoResponse {
     })
 }
 
-async fn list_handler() -> impl IntoResponse {
-    Json(ListResponse {
-        agents: vec![],
-    })
+async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    match list_agents(&pool).await {
+        Ok(agents) => Ok(Json(ListResponse { agents })),
+        Err(e) => {
+            error!("Failed to list agents: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to list agents: {}", e),
+                }),
+            ))
+        }
+    }
 }
 
 async fn add_agent_handler(
@@ -135,4 +147,20 @@ pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
     sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents")
         .fetch_all(pool)
         .await
+}
+
+async fn create_table_if_not_exists(pool: &SqlitePool) -> Result<(), Box<dyn Error>> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            token TEXT NOT NULL,
+            model TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )"
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
