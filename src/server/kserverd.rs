@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use chrono::Utc;
@@ -60,6 +60,16 @@ struct ErrorResponse {
     error: String,
 }
 
+#[derive(Deserialize)]
+struct RemoveAgent {
+    id: i64,
+}
+
+#[derive(Serialize)]
+struct RemoveAgentResponse {
+    message: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
@@ -74,6 +84,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/ping", get(ping_handler))
         .route("/list", get(list_handler))
         .route("/add", post(add_agent_handler))
+        .route("/remove", delete(remove_agent_handler))
         .with_state(pool);
 
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
@@ -136,6 +147,42 @@ async fn add_agent_handler(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
                     error: format!("Failed to create agent: {}", e),
+                }),
+            ))
+        }
+    }
+}
+
+async fn remove_agent_handler(
+    State(pool): State<SqlitePool>,
+    Json(payload): Json<RemoveAgent>,
+) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let result = sqlx::query("DELETE FROM agents WHERE id = ?")
+        .bind(payload.id)
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(query_result) => {
+            if query_result.rows_affected() > 0 {
+                Ok(Json(RemoveAgentResponse {
+                    message: format!("Agent {} removed successfully", payload.id),
+                }))
+            } else {
+                Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: format!("Agent {} not found", payload.id),
+                    }),
+                ))
+            }
+        }
+        Err(e) => {
+            error!("Failed to remove agent: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to remove agent: {}", e),
                 }),
             ))
         }
