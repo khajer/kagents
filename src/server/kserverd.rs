@@ -9,9 +9,13 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::error::Error;
+use tokio::fs;
 use tracing::{error, info};
 
 const PORT: u16 = 6411;
+const AGENTS_FOLDER: &str = "workspace";
+
+
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
@@ -136,6 +140,14 @@ async fn add_agent_handler(
 
     match result {
         Ok(query_result) => {
+            // Create folder with agent's name under agents directory
+            let folder_path = format!("./{}/{}", AGENTS_FOLDER, payload.name);
+            if let Err(e) = fs::create_dir_all(&folder_path).await {
+                error!("Failed to create folder for agent {}: {}", payload.name, e);
+            } else {
+                info!("Created folder for agent: {}", folder_path);
+            }
+
             Ok(Json(CreateAgentResponse {
                 id: query_result.last_insert_rowid(),
                 message: "Agent created successfully".to_string(),
@@ -157,32 +169,60 @@ async fn remove_agent_handler(
     State(pool): State<SqlitePool>,
     Json(payload): Json<RemoveAgent>,
 ) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let result = sqlx::query("DELETE FROM agents WHERE id = ?")
+    // First, get the agent's name before deleting
+    let agent_result = sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents WHERE id = ?")
         .bind(payload.id)
-        .execute(&pool)
+        .fetch_optional(&pool)
         .await;
 
-    match result {
-        Ok(query_result) => {
-            if query_result.rows_affected() > 0 {
-                Ok(Json(RemoveAgentResponse {
-                    message: format!("Agent {} removed successfully", payload.id),
-                }))
+    match agent_result {
+        Ok(Some(agent)) => {
+            // Delete the folder
+            let folder_path = format!("./{}/{}", AGENTS_FOLDER, agent.name);
+            if let Err(e) = fs::remove_dir_all(&folder_path).await {
+                error!("Failed to remove folder for agent {}: {}", agent.name, e);
+                // Continue with database deletion even if folder removal fails
             } else {
-                Err((
-                    StatusCode::NOT_FOUND,
-                    Json(ErrorResponse {
-                        error: format!("Agent {} not found", payload.id),
-                    }),
-                ))
+                info!("Removed folder for agent: {}", folder_path);
+            }
+
+            // Delete from database
+            let delete_result = sqlx::query("DELETE FROM agents WHERE id = ?")
+                .bind(payload.id)
+                .execute(&pool)
+                .await;
+
+            match delete_result {
+                Ok(_) => {
+                    Ok(Json(RemoveAgentResponse {
+                        message: format!("Agent {} removed successfully", payload.id),
+                    }))
+                }
+                Err(e) => {
+                    error!("Failed to remove agent from database: {}", e);
+                    Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorResponse {
+                            error: format!("Failed to remove agent: {}", e),
+                        }),
+                    ))
+                }
             }
         }
+        Ok(None) => {
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("Agent {} not found", payload.id),
+                }),
+            ))
+        }
         Err(e) => {
-            error!("Failed to remove agent: {}", e);
+            error!("Failed to query agent: {}", e);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
-                    error: format!("Failed to remove agent: {}", e),
+                    error: format!("Failed to query agent: {}", e),
                 }),
             ))
         }
