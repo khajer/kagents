@@ -1,21 +1,11 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Json},
-    routing::{delete, get, post},
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use std::error::Error;
 use tokio::fs;
 use tracing::{error, info};
 
-const PORT: u16 = 6411;
 const AGENTS_FOLDER: &str = "workspace";
-
-
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
@@ -37,77 +27,39 @@ impl std::fmt::Display for Agent {
 }
 
 #[derive(Serialize)]
-struct PingResponse {
-    message: String,
-}
-
-#[derive(Serialize)]
-struct ListResponse {
+pub(crate) struct ListResponse {
     agents: Vec<Agent>,
 }
 
 #[derive(Deserialize)]
-struct CreateAgent {
+pub(crate) struct CreateAgent {
     name: String,
     token: String,
     model: String,
 }
 
 #[derive(Serialize)]
-struct CreateAgentResponse {
+pub(crate) struct CreateAgentResponse {
     id: i64,
     message: String,
 }
 
 #[derive(Serialize)]
-struct ErrorResponse {
+pub(crate) struct ErrorResponse {
     error: String,
 }
 
 #[derive(Deserialize)]
-struct RemoveAgent {
+pub(crate) struct RemoveAgent {
     id: i64,
 }
 
 #[derive(Serialize)]
-struct RemoveAgentResponse {
+pub(crate) struct RemoveAgentResponse {
     message: String,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::fmt::init();
-
-    let pool = SqlitePool::connect("sqlite:agents.sqlite").await?;
-    info!("Connected to database");
-
-    create_table_if_not_exists(&pool).await?;
-    info!("Database table initialized");
-
-    let app = Router::new()
-        .route("/ping", get(ping_handler))
-        .route("/list", get(list_handler))
-        .route("/add", post(add_agent_handler))
-        .route("/remove", delete(remove_agent_handler))
-        .with_state(pool);
-
-    let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
-
-    info!("kserverd HTTP server listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
-
-    Ok(())
-}
-
-async fn ping_handler() -> impl IntoResponse {
-    Json(PingResponse {
-        message: "pong".to_string(),
-    })
-}
-
-async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
     match list_agents(&pool).await {
         Ok(agents) => Ok(Json(ListResponse { agents })),
         Err(e) => {
@@ -122,7 +74,21 @@ async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListRespons
     }
 }
 
-async fn add_agent_handler(
+pub async fn process_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    match list_agents(&pool).await {
+        Ok(agents) => Ok(Json(ListResponse { agents })),
+        Err(e) => {
+            error!("Failed to list agents: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to list agents: {}", e),
+                }),
+            ))
+        }
+    }
+}
+pub async fn add_agent_handler(
     State(pool): State<SqlitePool>,
     Json(payload): Json<CreateAgent>,
 ) -> Result<Json<CreateAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -148,11 +114,10 @@ async fn add_agent_handler(
                 info!("Created folder for agent: {}", folder_path);
             }
 
-            let readme_content = format!(
-                r#"# {}
-                - model : {},
-                - created : {}
-                "#, payload.name, payload.model, &created_at
+            let readme_content = format!(r#"# {}
+- model : {},
+- created : {}
+"#, payload.name, payload.model, &created_at
             );
 
             let readme_path = format!("{}/readme.md", folder_path);
@@ -179,7 +144,7 @@ async fn add_agent_handler(
     }
 }
 
-async fn remove_agent_handler(
+pub async fn remove_agent_handler(
     State(pool): State<SqlitePool>,
     Json(payload): Json<RemoveAgent>,
 ) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -241,25 +206,8 @@ async fn remove_agent_handler(
     }
 }
 
-
 pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
     sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents")
         .fetch_all(pool)
         .await
-}
-
-async fn create_table_if_not_exists(pool: &SqlitePool) -> Result<(), Box<dyn Error>> {
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS agents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            token TEXT NOT NULL,
-            model TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )"
-    )
-    .execute(pool)
-    .await?;
-
-    Ok(())
 }

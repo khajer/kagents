@@ -35,8 +35,8 @@ enum Commands {
     },
     #[command(about = "remove agents")]
     Remove {
-        #[arg(short, long, help = "remove agents ")]
-        task: Option<String>,
+        #[arg(short, long, help = "Agent ID to remove")]
+        id: i64,
     },
 }
 
@@ -57,6 +57,16 @@ struct CreateAgentRequest {
 #[derive(Deserialize)]
 struct CreateAgentResponse {
     id: i64,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct RemoveAgentRequest {
+    id: i64,
+}
+
+#[derive(Deserialize)]
+struct RemoveAgentResponse {
     message: String,
 }
 
@@ -118,8 +128,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("the server doesn't run.");
             }
         }
-        Some(Commands::Remove { task: _ }) => {
-            println!("remove agent works ");
+        Some(Commands::Remove { id }) => {
+            if check_server_open().await {
+                match remove_agent_request(id).await {
+                    Ok(response) => {
+                        println!("{}", response.message);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to remove agent: {}", e);
+                    }
+                }
+            } else {
+                println!("the server doesn't run.");
+            }
         }
         None => {
             println!("Use 'kcli --help' for usage information.");
@@ -170,4 +191,18 @@ async fn add_agent_request(name: &str, token: &str, model: &str) -> Result<Creat
 
     let create_response = response.json::<CreateAgentResponse>().await?;
     Ok(create_response)
+}
+
+async fn remove_agent_request(id: i64) -> Result<RemoveAgentResponse, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let request_body = RemoveAgentRequest { id };
+
+    let response = client
+        .delete(format!("{}/remove", SERVER_URL))
+        .json(&request_body)
+        .send()
+        .await?;
+
+    let remove_response = response.json::<RemoveAgentResponse>().await?;
+    Ok(remove_response)
 }
