@@ -9,8 +9,10 @@ use crate::command::Commands;
 
 mod http_fn;
 
+const DEFAULT_SERVER_URL: &str = "http://127.0.0.1:6411";
+
 fn get_server_url() -> String {
-    env::var("SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:6411".to_string())
+    env::var("SERVER_URL").unwrap_or_else(|_| DEFAULT_SERVER_URL.to_string())
 }
 
 #[tokio::main]
