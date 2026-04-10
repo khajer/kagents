@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Parser)]
 #[command(name = "kcli")]
 #[command(author = "kagents")]

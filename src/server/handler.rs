@@ -7,6 +7,11 @@ use tracing::{error, info};
 
 const AGENTS_FOLDER: &str = "workspace";
 
+const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, created_at FROM agents";
+const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, created_at FROM agents WHERE id = ?";
+const SQL_DELETE_AGENT_BY_ID: &str = "DELETE FROM agents WHERE id = ?";
+const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, created_at) VALUES (?, ?, ?, ?)";
+
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
     pub id: i64,
@@ -78,7 +83,7 @@ pub async fn process_handler(State(pool): State<SqlitePool>) -> Result<Json<List
     match list_agents(&pool).await {
         Ok(agents) => Ok(Json(ListResponse { agents })),
         Err(e) => {
-            error!("Failed to list agents: {}", e);
+            error!("Failed to process agents: {}", e);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -95,7 +100,7 @@ pub async fn add_agent_handler(
     let created_at = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "INSERT INTO agents (name, token, model, created_at) VALUES (?, ?, ?, ?)"
+        SQL_INSERT_AGENT
     )
     .bind(&payload.name)
     .bind(&payload.token)
@@ -149,7 +154,7 @@ pub async fn remove_agent_handler(
     Json(payload): Json<RemoveAgent>,
 ) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
 
-    let agent_result = sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents WHERE id = ?")
+        let agent_result = sqlx::query_as::<_, Agent>(SQL_SELECT_AGENT_BY_ID)
         .bind(payload.id)
         .fetch_optional(&pool)
         .await;
@@ -164,7 +169,7 @@ pub async fn remove_agent_handler(
                 info!("Removed folder for agent: {}", folder_path);
             }
 
-            let delete_result = sqlx::query("DELETE FROM agents WHERE id = ?")
+            let delete_result = sqlx::query(SQL_DELETE_AGENT_BY_ID)
                 .bind(payload.id)
                 .execute(&pool)
                 .await;
@@ -207,7 +212,7 @@ pub async fn remove_agent_handler(
 }
 
 pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
-    sqlx::query_as::<_, Agent>("SELECT id, name, token, model, created_at FROM agents")
+    sqlx::query_as::<_, Agent>(SQL_SELECT_AGENT_ALL)
         .fetch_all(pool)
         .await
 }
