@@ -7,10 +7,10 @@ use tracing::{error, info};
 
 const AGENTS_FOLDER: &str = "workspace";
 
-const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, created_at FROM agents";
-const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, created_at FROM agents WHERE id = ?";
+const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, status, created_at FROM agents";
+const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, status, created_at FROM agents WHERE id = ?";
 const SQL_DELETE_AGENT_BY_ID: &str = "DELETE FROM agents WHERE id = ?";
-const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, created_at) VALUES (?, ?, ?, ?)";
+const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, status, created_at) VALUES (?, ?, ?, ?, ?)";
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
