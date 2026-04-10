@@ -8,6 +8,7 @@ pub async fn create_table_if_not_exists(pool: &SqlitePool) -> Result<(), Box<dyn
             name TEXT NOT NULL,
             token TEXT NOT NULL,
             model TEXT NOT NULL,
+            status TEXT NOT NULL,
             created_at TEXT NOT NULL
         )"
     )
