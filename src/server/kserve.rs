@@ -16,12 +16,18 @@ use handler::add_agent_handler;
 use handler::remove_agent_handler;
 
 const PORT: u16 = 6411;
-const SQLITE_FILE: &str = "sqlite:agents.sqlite";
+const SQLITE_FILENAME: &str = "agents.sqlite";
+const SQLITE_CONN: &str = "sqlite:agents.sqlite";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
-    let pool = SqlitePool::connect(SQLITE_FILE).await?;
+
+    if !std::path::Path::new(SQLITE_FILENAME).exists() {
+        println!("created file dabase");
+        std::fs::File::create(SQLITE_FILENAME)?;
+    }
+    let pool = SqlitePool::connect(SQLITE_CONN).await?;
     info!("Connected to database");
 
     create_table_if_not_exists(&pool).await?;
