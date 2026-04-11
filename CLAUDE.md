@@ -36,11 +36,15 @@ This is a client-server agent management system with two binaries in a single cr
 - `db_func.rs` — creates the `agents` table on startup if it doesn't exist
 - `handler.rs` — all axum route handlers + the `Agent` struct (used by DB queries)
 
-**`kcli`** — CLI client (`src/kcli/kcli.rs`, single file)
-- Uses `clap` derive macros for subcommands: `status`, `list`, `add`, `remove`
+**`kcli`** — CLI client (`src/kcli/`)
+- `kcli.rs` — entry point: loads `.env`, resolves server URL, dispatches commands
+- `command.rs` — clap struct definitions and local `Agent` struct for deserialization
+- `http_fn.rs` — reqwest wrappers for all HTTP calls
+- Subcommands: `status`, `list`, `add`, `remove`
 - Always pings `GET /ping` first to confirm server is running
-- Defines its own local `Agent` struct (mirrors the server-side struct)
-- Connects to hardcoded `http://127.0.0.1:6411`
+- Server URL from `SERVER_URL` env var (default: `http://127.0.0.1:6411`)
+
+**`bots/facebook/`** — Separate Cargo project (not part of the workspace) implementing a `FacebookClient` against the Facebook Graph API v18.0. Requires a `FACEBOOK_ACCESS_TOKEN` env var.
 
 **Data flow:**
 ```
@@ -48,7 +52,7 @@ kcli → HTTP (port 6411) → kserve → handler.rs → SQLite (agents.sqlite)
                                                ↘ workspace/{name}/ (filesystem)
 ```
 
-**Side effects on agent create/delete:** The server creates/removes a `workspace/{agent_name}/` directory with a generated `readme.md` alongside each DB operation.
+**Side effects on agent create/delete:** The server creates/removes a `workspace/{agent_name}/` directory with a generated `readme.md` alongside each DB operation. Filesystem and DB operations are not wrapped in a transaction — deletion removes the folder first, then the DB row.
 
 ## Database
 
@@ -59,6 +63,7 @@ CREATE TABLE IF NOT EXISTS agents (
     name       TEXT NOT NULL,
     token      TEXT NOT NULL,
     model      TEXT NOT NULL,
+    status     TEXT NOT NULL,
     created_at TEXT NOT NULL   -- RFC3339 string from chrono::Utc::now()
 )
 ```
