@@ -5,12 +5,9 @@ use sqlx::SqlitePool;
 use tokio::fs;
 use tracing::{error, info};
 
-const AGENTS_FOLDER: &str = "workspace";
+use crate::db_func;
 
-const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, status, created_at FROM agents";
-const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, status, created_at FROM agents WHERE id = ?";
-const SQL_DELETE_AGENT_BY_ID: &str = "DELETE FROM agents WHERE id = ?";
-const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, status, created_at) VALUES (?, ?, ?, ?, ?)";
+const AGENTS_FOLDER: &str = "workspace";
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Agent {
@@ -18,6 +15,7 @@ pub struct Agent {
     pub name: String,
     pub token: String,
     pub model: String,
+    pub status: String,
     pub created_at: String,
 }
 
@@ -38,9 +36,10 @@ pub(crate) struct ListResponse {
 
 #[derive(Deserialize)]
 pub(crate) struct CreateAgent {
-    name: String,
-    token: String,
-    model: String,
+    pub(crate) name: String,
+    pub(crate) token: String,
+    pub(crate) model: String,
+    pub(crate) status: String,
 }
 
 #[derive(Serialize)]
@@ -65,7 +64,7 @@ pub(crate) struct RemoveAgentResponse {
 }
 
 pub async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match list_agents(&pool).await {
+    match db_func::list_agents(&pool).await {
         Ok(agents) => Ok(Json(ListResponse { agents })),
         Err(e) => {
             error!("Failed to list agents: {}", e);
@@ -80,7 +79,7 @@ pub async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListRes
 }
 
 pub async fn process_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    match list_agents(&pool).await {
+    match db_func::list_agents(&pool).await {
         Ok(agents) => Ok(Json(ListResponse { agents })),
         Err(e) => {
             error!("Failed to process agents: {}", e);
@@ -99,15 +98,8 @@ pub async fn add_agent_handler(
 ) -> Result<Json<CreateAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
     let created_at = Utc::now().to_rfc3339();
 
-    let result = sqlx::query(
-        SQL_INSERT_AGENT
-    )
-    .bind(&payload.name)
-    .bind(&payload.token)
-    .bind(&payload.model)
-    .bind(&created_at)
-    .execute(&pool)
-    .await;
+
+    let result = db_func::insert_agent(&pool, &payload).await;
 
     match result {
         Ok(query_result) => {
@@ -153,11 +145,7 @@ pub async fn remove_agent_handler(
     State(pool): State<SqlitePool>,
     Json(payload): Json<RemoveAgent>,
 ) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-
-        let agent_result = sqlx::query_as::<_, Agent>(SQL_SELECT_AGENT_BY_ID)
-        .bind(payload.id)
-        .fetch_optional(&pool)
-        .await;
+    let agent_result = db_func::get_agent_by_id(&pool, payload.id).await;
 
     match agent_result {
         Ok(Some(agent)) => {
@@ -169,10 +157,8 @@ pub async fn remove_agent_handler(
                 info!("Removed folder for agent: {}", folder_path);
             }
 
-            let delete_result = sqlx::query(SQL_DELETE_AGENT_BY_ID)
-                .bind(payload.id)
-                .execute(&pool)
-                .await;
+            let delete_result = db_func::delete_agent_by_id(&pool, payload.id).await;
+
 
             match delete_result {
                 Ok(_) => {
@@ -209,10 +195,4 @@ pub async fn remove_agent_handler(
             ))
         }
     }
-}
-
-pub async fn list_agents(pool: &SqlitePool) -> Result<Vec<Agent>, sqlx::Error> {
-    sqlx::query_as::<_, Agent>(SQL_SELECT_AGENT_ALL)
-        .fetch_all(pool)
-        .await
 }
