@@ -34,6 +34,12 @@ pub(crate) struct ListResponse {
     agents: Vec<Agent>,
 }
 
+#[derive(Serialize)]
+pub(crate) struct AgentResponse {
+    agent: Agent,
+}
+
+
 #[derive(Deserialize)]
 pub(crate) struct CreateAgent {
     pub(crate) name: String,
@@ -54,7 +60,7 @@ pub(crate) struct ErrorResponse {
 }
 
 #[derive(Deserialize)]
-pub(crate) struct RemoveAgent {
+pub(crate) struct DataAgent {
     id: i64,
 }
 
@@ -76,6 +82,35 @@ pub async fn list_handler(State(pool): State<SqlitePool>) -> Result<Json<ListRes
             ))
         }
     }
+}
+
+pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<DataAgent>) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let agent_result = db_func::get_agent_by_id(&pool, payload.id).await;
+
+    match agent_result {
+        Ok(Some(agent)) => {
+            Ok(Json(AgentResponse { agent }))
+        }
+        Ok(None) => {
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("Agent {} not found", payload.id),
+                }),
+            ))
+        }
+        Err(e) => {
+            error!("Failed to query agent: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Failed to query agent: {}", e),
+                }),
+            ))
+        }
+    }
+
+
 }
 
 pub async fn process_handler(State(pool): State<SqlitePool>) -> Result<Json<ListResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -143,7 +178,7 @@ pub async fn add_agent_handler(
 
 pub async fn remove_agent_handler(
     State(pool): State<SqlitePool>,
-    Json(payload): Json<RemoveAgent>,
+    Json(payload): Json<DataAgent>,
 ) -> Result<Json<RemoveAgentResponse>, (StatusCode, Json<ErrorResponse>)> {
     let agent_result = db_func::get_agent_by_id(&pool, payload.id).await;
 

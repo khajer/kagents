@@ -14,6 +14,7 @@ use handler::list_handler;
 use handler::process_handler;
 use handler::add_agent_handler;
 use handler::remove_agent_handler;
+use handler::prompt_handler;
 
 const PORT: u16 = 6411;
 const SQLITE_FILENAME: &str = "agents.sqlite";
@@ -36,6 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .route("/list", get(list_handler))
         .route("/process", get(process_handler))
+        .route("/prompt", get(prompt_handler))
         .route("/add", post(add_agent_handler))
         .route("/remove", delete(remove_agent_handler))
         .with_state(pool);
