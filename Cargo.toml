@@ -20,8 +20,8 @@ inquire = "0.7"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
 dotenv = "0.15"
-openai = "1.0.0"
-anthropic = "0.4"
+
+
 
 [dev-dependencies]
 tokio-test = "0.4"
