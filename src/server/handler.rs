@@ -95,12 +95,37 @@ pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<
 
     match agent_result {
         Ok(Some(agent)) => {
-            match call_agent::call_openai(&payload.prompt, &agent.token, &agent.model).await {
-                Ok(response) => {
-                    info!("OpenAI response: {}", response);
+            let agent_brand = "openai";
+
+            if agent_brand == "openai" {
+                match call_agent::call_openai(&payload.prompt, &agent.token, &agent.model).await {
+                    Ok(response) => {
+                        info!("OpenAI response: {}", response);
+                    }
+                    Err(e) => {
+                        error!("Failed to call OpenAI: {}", e);
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ErrorResponse {
+                                error: format!("Failed to call OpenAI: {}", e),
+                            }),
+                        ));
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to call OpenAI: {}", e);
+            } else {
+                match call_agent::call_anthropic(&payload.prompt, &agent.token, &agent.model).await {
+                    Ok(response) => {
+                        info!("Anthropic response: {}", response);
+                    }
+                    Err(e) => {
+                        error!("Failed to call Anthropic: {}", e);
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ErrorResponse {
+                                error: format!("Failed to call Anthropic: {}", e),
+                            }),
+                        ));
+                    }
                 }
             }
 
