@@ -19,6 +19,7 @@ pub struct Agent {
     pub name: String,
     pub token: String,
     pub model: String,
+    pub brand: String,
     pub status: String,
     pub created_at: String,
 }
@@ -49,6 +50,7 @@ pub(crate) struct CreateAgent {
     pub(crate) name: String,
     pub(crate) token: String,
     pub(crate) model: String,
+    pub(crate) brand: String,
     pub(crate) status: String,
 }
 
@@ -95,9 +97,7 @@ pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<
 
     match agent_result {
         Ok(Some(agent)) => {
-            let agent_brand = "openai";
-
-            if agent_brand == "openai" {
+            if agent.brand == "openai" {
                 match call_agent::call_openai(&payload.prompt, &agent.token, &agent.model).await {
                     Ok(response) => {
                         info!("OpenAI response: {}", response);

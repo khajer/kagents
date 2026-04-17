@@ -4,15 +4,16 @@ use std::error::Error;
 
 use crate::handler::{Agent, CreateAgent};
 
-const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, status, created_at FROM agents";
-const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, status, created_at FROM agents WHERE id = ?";
+const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents";
+const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents WHERE id = ?";
 const SQL_DELETE_AGENT_BY_ID: &str = "DELETE FROM agents WHERE id = ?";
-const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, status, created_at) VALUES (?, ?, ?, ?, ?)";
+const SQL_INSERT_AGENT: &str = "INSERT INTO agents (name, token, model, brand, status, created_at) VALUES (?, ?, ?, ?, ?, ?)";
 const SQL_CREATE_AGENT_TABLE: &str = "CREATE TABLE IF NOT EXISTS agents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     token TEXT NOT NULL,
     model TEXT NOT NULL,
+    brand TEXT NOT NULL,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL
 )";
@@ -51,6 +52,7 @@ pub async fn insert_agent(pool: &SqlitePool, payload: &CreateAgent) -> Result<sq
         .bind(&payload.name)
         .bind(&payload.token)
         .bind(&payload.model)
+        .bind(&payload.brand)
         .bind(&payload.status)
         .bind(&created_at)
         .execute(pool)

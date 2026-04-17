@@ -11,6 +11,7 @@ pub struct CreateAgentRequest {
     pub name: String,
     pub token: String,
     pub model: String,
+    pub brand: String,
 }
 
 #[derive(Deserialize)]
@@ -54,12 +55,13 @@ pub async fn send_list(server_url: &str) {
     }
 }
 
-pub async fn add_agent_request(name: &str, token: &str, model: &str, server_url: &str) -> Result<CreateAgentResponse, Box<dyn std::error::Error>> {
+pub async fn add_agent_request(name: &str, token: &str, model: &str, brand: &str, server_url: &str) -> Result<CreateAgentResponse, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let request_body = CreateAgentRequest {
         name: name.to_string(),
         token: token.to_string(),
         model: model.to_string(),
+        brand: brand.to_string(),
     };
 
     let response = client

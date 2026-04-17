@@ -48,8 +48,8 @@ async fn process_command_line(cli: Cli, server_url: &str) {
         Some(Commands::List { task: _ }) => {
             http_fn::send_list(&server_url).await;
         }
-        Some(Commands::Add { name, token, model }) => {
-            match http_fn::add_agent_request(&name, &token, &model, &server_url).await {
+        Some(Commands::Add { name, token, model, brand }) => {
+            match http_fn::add_agent_request(&name, &token, &model, &brand, &server_url).await {
                 Ok(response) => {
                     println!("{} (ID: {})", response.message, response.id);
                 }

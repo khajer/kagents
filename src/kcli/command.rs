@@ -32,6 +32,8 @@ pub enum Commands {
         token: String,
         #[arg(short, long, help = "Agent model")]
         model: String,
+        #[arg(short, long, help = "Agent brand (e.g. openai, anthropic)")]
+        brand: String,
     },
     #[command(about = "remove agents")]
     Remove {
@@ -46,6 +48,7 @@ pub struct Agent {
     pub name: String,
     pub token: String,
     pub model: String,
+    pub brand: String,
     pub created_at: String,
 }
 
@@ -53,8 +56,8 @@ impl std::fmt::Display for Agent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ID: {} | Name: {} | Model: {} | Created: {}",
-            self.id, self.name, self.model, self.created_at
+            "ID: {} | Name: {} | Model: {} | Brand: {} | Created: {}",
+            self.id, self.name, self.model, self.brand, self.created_at
         )
     }
 }
