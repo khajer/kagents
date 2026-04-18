@@ -129,7 +129,12 @@ pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<
                 }
             }
 
+            if let Err(e) = db_func::insert_prompt(&pool, agent.id, &payload.prompt).await {
+                error!("Failed to save prompt: {}", e);
+            }
+
             Ok(Json(AgentResponse { agent }))
+
         }
         Ok(None) => {
             Err((

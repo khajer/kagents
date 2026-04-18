@@ -4,6 +4,14 @@ use std::error::Error;
 
 use crate::handler::{Agent, CreateAgent};
 
+const SQL_CREATE_PROMPT_TABLE: &str = "CREATE TABLE IF NOT EXISTS prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt TEXT NOT NULL,
+    agent_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+)";
+const SQL_INSERT_PROMPT: &str = "INSERT INTO prompts (prompt, agent_id, created_at) VALUES (?, ?, ?)";
+
 const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents";
 const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents WHERE id = ?";
 const SQL_DELETE_AGENT_BY_ID: &str = "DELETE FROM agents WHERE id = ?";
@@ -20,8 +28,12 @@ const SQL_CREATE_AGENT_TABLE: &str = "CREATE TABLE IF NOT EXISTS agents (
 
 pub async fn create_table_if_not_exists(pool: &SqlitePool) -> Result<(), Box<dyn Error>> {
     sqlx::query(SQL_CREATE_AGENT_TABLE)
-    .execute(pool)
-    .await?;
+        .execute(pool)
+        .await?;
+
+    sqlx::query(SQL_CREATE_PROMPT_TABLE)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
@@ -54,6 +66,17 @@ pub async fn insert_agent(pool: &SqlitePool, payload: &CreateAgent) -> Result<sq
         .bind(&payload.model)
         .bind(&payload.brand)
         .bind(&payload.status)
+        .bind(&created_at)
+        .execute(pool)
+        .await
+}
+
+/// Saves a prompt message linked to an agent.
+pub async fn insert_prompt(pool: &SqlitePool, agent_id: i64, prompt: &str) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+    let created_at = Utc::now().to_rfc3339();
+    sqlx::query(SQL_INSERT_PROMPT)
+        .bind(prompt)
+        .bind(agent_id)
         .bind(&created_at)
         .execute(pool)
         .await
