@@ -280,3 +280,19 @@ async fn gen_agent_folder(payload: &CreateAgent) {
     }
 
 }
+
+#[derive(Serialize)]
+pub(crate) struct VersionResponse {
+    version: String,
+}
+
+/// Returns the minimum compatible client version.
+pub async fn compatible_client_version_handler() -> Json<VersionResponse> {
+    Json(VersionResponse {
+        version: "1.0.0".to_string(),
+    })
+}
+
+pub async fn ping_handler() -> StatusCode {
+    StatusCode::OK
+}

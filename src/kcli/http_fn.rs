@@ -87,3 +87,15 @@ pub async fn remove_agent_request(id: i64, server_url: &str) -> Result<RemoveAge
     let remove_response = response.json::<RemoveAgentResponse>().await?;
     Ok(remove_response)
 }
+
+#[derive(Deserialize)]
+pub struct VersionResponse {
+    pub version: String,
+}
+
+
+pub async fn get_compatible_version(server_url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let response = reqwest::get(format!("{}/compatible_client_version", server_url)).await?;
+    let version_response = response.json::<VersionResponse>().await?;
+    Ok(version_response.version)
+}

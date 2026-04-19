@@ -16,6 +16,8 @@ use handler::process_handler;
 use handler::add_agent_handler;
 use handler::remove_agent_handler;
 use handler::prompt_handler;
+use handler::compatible_client_version_handler;
+use handler::ping_handler;
 
 const PORT: u16 = 6411;
 
@@ -38,11 +40,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("{MSG_DB_INITIALIZED}");
 
     let app = Router::new()
+        .route("/ping", get(ping_handler))
         .route("/list", get(list_handler))
         .route("/process", get(process_handler))
         .route("/prompt", get(prompt_handler))
         .route("/add", post(add_agent_handler))
         .route("/remove", delete(remove_agent_handler))
+        .route("/compatible_client_version", get(compatible_client_version_handler))
         .with_state(pool);
 
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
