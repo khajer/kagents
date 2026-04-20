@@ -71,7 +71,6 @@ pub async fn insert_agent(pool: &SqlitePool, payload: &CreateAgent) -> Result<sq
         .await
 }
 
-/// Saves a prompt message linked to an agent.
 pub async fn insert_prompt(pool: &SqlitePool, agent_id: i64, prompt: &str) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
     let created_at = Utc::now().to_rfc3339();
     sqlx::query(SQL_INSERT_PROMPT)
