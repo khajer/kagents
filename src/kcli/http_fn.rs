@@ -93,7 +93,6 @@ pub struct VersionResponse {
     pub version: String,
 }
 
-
 pub async fn get_compatible_version(server_url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let response = reqwest::get(format!("{}/compatible_client_version", server_url)).await?;
     let version_response = response.json::<VersionResponse>().await?;

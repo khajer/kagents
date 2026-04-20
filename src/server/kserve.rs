@@ -50,11 +50,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_state(pool);
 
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], PORT).into();
-
     info!("{MSG_SERVER_STARTED} {addr}");
-
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
-
     Ok(())
 }

@@ -255,8 +255,6 @@ pub async fn remove_agent_handler(
     }
 }
 
-
-
 async fn gen_agent_folder(payload: &CreateAgent) {
     let folder_path = format!("./{}/{}", AGENTS_FOLDER, payload.name);
     if let Err(e) = fs::create_dir_all(&folder_path).await {
@@ -278,7 +276,6 @@ async fn gen_agent_folder(payload: &CreateAgent) {
     } else {
         info!("Created readme file for agent: {}", readme_path);
     }
-
 }
 
 #[derive(Serialize)]
