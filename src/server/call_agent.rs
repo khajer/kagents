@@ -27,6 +27,11 @@ struct AnthropicResponse {
     content: Vec<ContentBlock>,
 }
 
+#[derive(serde::Deserialize)]
+struct OllamaResponse {
+    message: Message,
+}
+
 #[derive(serde::Serialize)]
 struct RequestBody {
     model: String,
@@ -52,6 +57,8 @@ const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const HEADER_X_API_KEY: &str = "x-api-key";
 const HEADER_ANTHROPIC_VERSION: &str = "anthropic-version";
 const HEADER_ANTHROPIC_VERSION_VALUE: &str = "2023-06-01";
+
+const OLLAMA_API_URL: &str = "http://localhost:11434/api/chat";
 
 pub async fn call_openai(prompt: &str, token: &str, model: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
@@ -120,4 +127,32 @@ pub async fn call_anthropic(prompt: &str, token: &str, model: &str) -> Result<St
         .ok_or("No response from Anthropic")?;
 
     Ok(content)
+}
+
+pub async fn call_ollama(prompt: &str, model: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+
+    let request_body = RequestBody {
+        model: model.to_string(),
+        messages: vec![Message {
+            role: "user".to_string(),
+            content: prompt.to_string(),
+        }],
+    };
+
+    let response = client
+        .post(OLLAMA_API_URL)
+        .header(HEADER_CONTENT_TYPE, HEADER_CONTENT_TYPE_VALUE)
+        .json(&request_body)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await?;
+        return Err(format!("Ollama API error: {}", error_text).into());
+    }
+
+    let api_response: OllamaResponse = response.json().await?;
+
+    Ok(api_response.message.content)
 }

@@ -109,7 +109,7 @@ pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<
                         ));
                     }
                 }
-            } else {
+            } else if agent.brand == "anthropic" {
                 match call_agent::call_anthropic(&payload.prompt, &agent.token, &agent.model).await {
                     Ok(response) => {
                         info!("Anthropic response: {}", response);
@@ -120,6 +120,21 @@ pub async fn prompt_handler(State(pool): State<SqlitePool>, Json(payload): Json<
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(ErrorResponse {
                                 error: format!("Failed to call Anthropic: {}", e),
+                            }),
+                        ));
+                    }
+                }
+            } else if agent.brand == "ollama" {
+                match call_agent::call_ollama(&payload.prompt, &agent.model).await {
+                    Ok(response) => {
+                        info!("Ollama response: {}", response);
+                    }
+                    Err(e) => {
+                        error!("Failed to call Ollama: {}", e);
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ErrorResponse {
+                                error: format!("Failed to call Ollama: {}", e),
                             }),
                         ));
                     }
