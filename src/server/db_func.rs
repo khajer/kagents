@@ -7,10 +7,11 @@ use crate::handler::{Agent, CreateAgent};
 const SQL_CREATE_PROMPT_TABLE: &str = "CREATE TABLE IF NOT EXISTS prompts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     prompt TEXT NOT NULL,
-    agent_id INTEGER NOT NULL,
+    agent_id INTEGER,
+    user_prompt BOOLEAN NOT NULL,
     created_at TEXT NOT NULL
 )";
-const SQL_INSERT_PROMPT: &str = "INSERT INTO prompts (prompt, agent_id, created_at) VALUES (?, ?, ?)";
+const SQL_INSERT_PROMPT: &str = "INSERT INTO prompts (prompt, agent_id, user_prompt, created_at) VALUES (?, ?, ?, ?)";
 
 const SQL_SELECT_AGENT_ALL: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents";
 const SQL_SELECT_AGENT_BY_ID: &str = "SELECT id, name, token, model, brand, status, created_at FROM agents WHERE id = ?";
@@ -71,11 +72,12 @@ pub async fn insert_agent(pool: &SqlitePool, payload: &CreateAgent) -> Result<sq
         .await
 }
 
-pub async fn insert_prompt(pool: &SqlitePool, agent_id: i64, prompt: &str) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+pub async fn insert_prompt(pool: &SqlitePool, agent_id: Option<i64>, prompt: &str, user_prompt: bool) -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
     let created_at = Utc::now().to_rfc3339();
     sqlx::query(SQL_INSERT_PROMPT)
         .bind(prompt)
         .bind(agent_id)
+        .bind(user_prompt)
         .bind(&created_at)
         .execute(pool)
         .await
