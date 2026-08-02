@@ -82,3 +82,64 @@ pub async fn insert_prompt(pool: &SqlitePool, agent_id: Option<i64>, prompt: &st
         .execute(pool)
         .await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn memory_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        create_table_if_not_exists(&pool).await.unwrap();
+        pool
+    }
+
+    fn sample_agent() -> CreateAgent {
+        CreateAgent {
+            name: "bot1".to_string(),
+            token: "tok".to_string(),
+            model: "gpt-4".to_string(),
+            brand: "openai".to_string(),
+            status: "active".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn insert_and_list_agent() {
+        let pool = memory_pool().await;
+        insert_agent(&pool, &sample_agent()).await.unwrap();
+        let agents = list_agents(&pool).await.unwrap();
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].name, "bot1");
+        assert_eq!(agents[0].brand, "openai");
+    }
+
+    #[tokio::test]
+    async fn get_agent_by_id_found_and_missing() {
+        let pool = memory_pool().await;
+        let result = insert_agent(&pool, &sample_agent()).await.unwrap();
+        let id = result.last_insert_rowid();
+
+        let found = get_agent_by_id(&pool, id).await.unwrap();
+        assert_eq!(found.unwrap().name, "bot1");
+
+        let missing = get_agent_by_id(&pool, id + 999).await.unwrap();
+        assert!(missing.is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_agent_removes_row() {
+        let pool = memory_pool().await;
+        let result = insert_agent(&pool, &sample_agent()).await.unwrap();
+        let id = result.last_insert_rowid();
+
+        delete_agent_by_id(&pool, id).await.unwrap();
+        assert!(get_agent_by_id(&pool, id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn insert_prompt_succeeds() {
+        let pool = memory_pool().await;
+        let result = insert_prompt(&pool, None, "hello", true).await.unwrap();
+        assert_eq!(result.rows_affected(), 1);
+    }
+}
