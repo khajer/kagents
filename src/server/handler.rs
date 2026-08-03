@@ -58,7 +58,7 @@ pub(crate) struct CreateAgentResponse {
     message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub(crate) struct ErrorResponse {
     error: String,
 }
@@ -299,4 +299,88 @@ pub async fn compatible_client_version_handler() -> Json<VersionResponse> {
 
 pub async fn ping_handler() -> StatusCode {
     StatusCode::OK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn memory_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        db_func::create_table_if_not_exists(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn ping_returns_ok() {
+        assert_eq!(ping_handler().await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn compatible_version_is_1_0_0() {
+        let Json(v) = compatible_client_version_handler().await;
+        assert_eq!(v.version, "1.0.0");
+    }
+
+    #[tokio::test]
+    async fn list_handler_starts_empty() {
+        let pool = memory_pool().await;
+        let Json(resp) = list_handler(State(pool)).await.unwrap();
+        assert!(resp.agents.is_empty());
+    }
+
+    #[tokio::test]
+    async fn add_then_remove_agent_round_trip() {
+        let pool = memory_pool().await;
+        // ponytail: gen_agent_folder writes to a real ./workspace dir (hardcoded, not
+        // injectable) so this exercises the actual filesystem; unique name avoids
+        // colliding with real agent folders, and the remove call cleans up after itself.
+        let name = format!("test-agent-{}", std::process::id());
+        let payload = CreateAgent {
+            name: name.clone(),
+            token: "tok".to_string(),
+            model: "gpt-4".to_string(),
+            brand: "openai".to_string(),
+            status: "active".to_string(),
+        };
+
+        let add_result = add_agent_handler(State(pool.clone()), Json(payload)).await;
+        let folder = format!("./{}/{}", AGENTS_FOLDER, name);
+        let Json(add_resp) = add_result.unwrap();
+        assert_eq!(add_resp.message, MSG_SUCCESS);
+        assert!(fs::metadata(&folder).await.is_ok());
+
+        let remove_result = remove_agent_handler(
+            State(pool),
+            Json(DataAgent { id: add_resp.id, prompt: String::new() }),
+        )
+        .await;
+        let Json(remove_resp) = remove_result.unwrap();
+        assert!(remove_resp.message.contains(&add_resp.id.to_string()));
+        assert!(fs::metadata(&folder).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn remove_missing_agent_is_not_found() {
+        let pool = memory_pool().await;
+        let result = remove_agent_handler(State(pool), Json(DataAgent { id: 9999, prompt: String::new() })).await;
+        match result {
+            Err((status, _)) => assert_eq!(status, StatusCode::NOT_FOUND),
+            Ok(_) => panic!("expected NOT_FOUND"),
+        }
+    }
+
+    #[tokio::test]
+    async fn prompt_missing_agent_is_not_found() {
+        let pool = memory_pool().await;
+        let result = prompt_handler(
+            State(pool),
+            Json(DataAgent { id: 9999, prompt: "hi".to_string() }),
+        )
+        .await;
+        match result {
+            Err((status, _)) => assert_eq!(status, StatusCode::NOT_FOUND),
+            Ok(_) => panic!("expected NOT_FOUND"),
+        }
+    }
 }
