@@ -102,3 +102,17 @@ async fn process_command_line(cli: Cli, server_url: &str) {
         None => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_comparison() {
+        assert!(is_version_lower("1.0.0", "1.0.1"));
+        assert!(is_version_lower("1.0.0", "1.1.0"));
+        assert!(!is_version_lower("1.0.1", "1.0.0"));
+        assert!(!is_version_lower("1.0.0", "1.0.0"));
+        assert!(!is_version_lower("2.0.0", "1.9.9"));
+    }
+}
