@@ -1,0 +1,10 @@
+target/
+debug/
+workspace/
+agents.sqlite
+*.sqlite
+.env
+.git/
+.gitignore
+*.md
+bots/
