@@ -1,0 +1,40 @@
+services:
+  kserve:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kagents-kserve:local
+    container_name: kagents-kserve
+    ports:
+      - "6411:6411"
+    volumes:
+      # Persists agents.sqlite and workspace/, both written relative to
+      # the container's working directory (/app).
+      - kagents-data:/app
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kcli", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # One-off CLI usage against the kserve service, e.g.:
+  #   docker compose run --rm kcli list
+  #   docker compose run --rm kcli add --name Agent1 --token abc123 --model gpt-4
+  kcli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kagents-kserve:local
+    profiles: ["cli"]
+    depends_on:
+      - kserve
+    environment:
+      SERVER_URL: http://kserve:6411
+    entrypoint: ["kcli"]
+
+volumes:
+  kagents-data:
